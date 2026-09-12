@@ -1,38 +1,58 @@
-import { ArchitectureDiagram } from "@/components/ArchitectureDiagram";
-import { ExchangeLensDemo } from "@/components/ExchangeLensDemo";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { metrics, profile, projects, stack } from "@/data/portfolio";
-
-const Arrow = () => <span aria-hidden="true">↗</span>;
+import { Navigation } from "@/components/Navigation";
+import { Hero } from "@/components/Hero";
+import { ProofBento } from "@/components/ProofBento";
+import { CaseStudies } from "@/components/CaseStudies";
+import { FinancialInspector } from "@/components/FinancialInspector";
+import { MarketDomainMap } from "@/components/MarketDomainMap";
+import { ExperienceTimeline } from "@/components/ExperienceTimeline";
+import { StackCategorized } from "@/components/StackCategorized";
+import { PhilosophyVisual } from "@/components/PhilosophyVisual";
+import { AboutSection } from "@/components/AboutSection";
+import { Footer } from "@/components/Footer";
+import { profile } from "@/data/portfolio";
 
 export default function Home() {
   const personSchema = {
-    "@context": "https://schema.org", "@type": "Person", name: "Satyam Sethi", jobTitle: "Quality Assurance Project Lead", worksFor: { "@type": "Organization", name: "ION Group" }, address: { "@type": "PostalAddress", addressLocality: "Noida", addressCountry: "IN" }, sameAs: [profile.github, profile.linkedin], url: "https://satyamsethi.dev"
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: profile.name,
+    jobTitle: profile.title,
+    worksFor: {
+      "@type": "Organization",
+      name: profile.company,
+    },
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: "Noida",
+      addressCountry: "IN",
+    },
+    sameAs: [profile.github, profile.linkedin],
+    url: "https://satyamsethi.dev",
   };
-  return <>
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }} />
-    <a className="skip-link" href="#main">Skip to content</a>
-    <div className="page-grid" aria-hidden="true" />
-    <header className="nav-wrap"><nav className="nav" aria-label="Main navigation"><a className="wordmark" href="#top">SATYAM <span>SETHI</span></a><div className="nav-links"><a href="#work">Work</a><a href="#experience">Experience</a><a href="#stack">Stack</a><a href="#about">About</a></div><div className="nav-actions">{profile.resumeAvailable && <a className="nav-resume" href="/resume.pdf">Resume</a>}<ThemeToggle /><a className="nav-talk" href="#contact">Let&apos;s talk <Arrow /></a></div></nav></header>
-    <main id="main">
-      <section className="hero section" id="top"><div className="hero-copy reveal"><p className="eyebrow"><i /> AI Engineering × Capital Markets × Data Systems</p><h1>I build intelligent systems <span>for financial data.</span></h1><p className="hero-text">Engineering lead at ION, working across exchange-traded derivatives, market data and financial-data validation. Now building AI systems around problems I know from production.</p><div className="hero-cta"><a className="button button-primary" href="#work">Explore work <Arrow /></a><a className="button button-quiet" href={profile.github} target="_blank" rel="noreferrer">GitHub <Arrow /></a><a className="button button-quiet" href={profile.linkedin} target="_blank" rel="noreferrer">LinkedIn <Arrow /></a></div><div className="hero-status"><span><i /> Noida, India</span><span>Open to AI / FinTech opportunities</span></div></div><div className="flow-visual reveal" aria-label="Financial data system visualization"><div className="visual-label top">EXCHANGE SIGNALS / 2026</div><div className="exchange-row"><span>CME</span><span>ICE</span><span>EUREX</span></div><div className="flow-line"><b /><b /><b /></div><div className="pipeline">{["Ingest", "Normalize", "Validate", "Reason", "Deliver"].map((item, index) => <div className="pipeline-node" key={item}><span>{String(index + 1).padStart(2, "0")}</span><strong>{item}</strong></div>)}</div><div className="signal signal-one" /><div className="signal signal-two" /><div className="visual-label bottom">DATA LINEAGE / TRACEABLE OUTPUT</div></div></section>
 
-      <section className="section metrics-section" aria-label="Professional highlights"><div className="bento-grid">{metrics.map((metric, index) => <article className={`metric-card metric-${index + 1}`} key={metric.label}><strong>{metric.value}</strong><h2>{metric.label}</h2><p>{metric.detail}</p>{index === 1 && <div className="mini-bars" aria-hidden="true">{Array.from({ length: 7 }, (_, i) => <i key={i} />)}</div>}</article>)}</div></section>
-
-      <section className="section project-section" id="work"><div className="section-intro"><div><p className="eyebrow">01 / Featured case study</p><h2>ExchangeLens</h2></div><p>AI-powered exchange change intelligence and data validation. A product exploration of how notices become structured, evidence-backed decisions.</p></div><div className="project-hero"><div><p className="eyebrow">The question</p><h3>How do you turn a document change into a trustworthy operational decision?</h3><p>Exchanges publish circulars, specifications and operational updates. Those changes must eventually become structured data inside financial systems. ExchangeLens explores how AI can shorten that path without treating plausibility as correctness.</p></div><div className="principles"><span>LLM for interpretation.</span><span>Code for enforcement.</span><span>Source evidence for trust.</span></div></div><ArchitectureDiagram /><div className="case-grid"><article><p className="eyebrow">AI layer</p><h3>Interpret context</h3><p>Extract candidates from complex source material, then reason over ambiguity with the relevant evidence close at hand.</p></article><article><p className="eyebrow">Validation strategy</p><h3>Enforce what matters</h3><p>Compare against reference data and deterministic rules where the system needs a clear, repeatable answer.</p></article><article><p className="eyebrow">Failure modes</p><h3>Make uncertainty visible</h3><p>Flag missing evidence, conflicting sources and low-confidence extraction for human review instead of silently guessing.</p></article></div><ExchangeLensDemo /></section>
-
-      <section className="section experience-section" id="experience"><div className="section-intro"><div><p className="eyebrow">02 / Experience</p><h2>Compounding layers.</h2></div><p>My path started close to system correctness. Each step added a broader technical and operational lens.</p></div><div className="career"><div className="career-rail" aria-hidden="true" /><article><time>2024</time><div><p className="eyebrow">ION GROUP · XTP Core</p><h3>QA Analyst</h3><p>Worked with UI and API automation and the validation of trade and post-trade workflows for cleared derivatives.</p></div></article><article><time>2025</time><div><p className="eyebrow">ION GROUP</p><h3>Automation Engineer</h3><p>Expanded into automation frameworks, CI/CD, data workflows and wider engineering ownership.</p></div></article><article><time>2026 — Present</time><div><p className="eyebrow">ION DATA SERVICE (IDS)</p><h3>Quality Assurance Project Lead</h3><p>Lead 7 engineers working across automation, financial-data validation, delivery and production readiness.</p></div></article></div><div className="progression"><span>Testing</span><b>→</b><span>Automation</span><b>→</b><span>Data systems</span><b>→</b><span>Technical ownership</span><b>→</b><span>AI</span></div></section>
-
-      <section className="section market-section"><div className="section-intro"><div><p className="eyebrow">03 / Domain knowledge</p><h2>Built around markets.</h2></div><p>Capital-markets fluency changes what useful software looks like: precision, lineage and downstream consequences all matter.</p></div><div className="market-map"><div className="map-origin"><span>Capital markets</span><div><p>Exchange-traded derivatives</p><p>Market data</p><p>Reference data</p><p>Post-trade</p><p>Margin</p><p>Back office systems</p></div></div><div className="map-flow"><i /><i /><i /></div><div className="map-columns"><div><span>Exchanges</span><strong>CME</strong><strong>ICE</strong><strong>EUREX</strong></div><div><span>Market objects</span><strong>Products</strong><strong>Contracts</strong><strong>Prices</strong><strong>Margins</strong></div><div><span>Systems</span><strong>Transformation</strong><strong>Downstream systems</strong><strong>Validation</strong></div></div></div></section>
-
-      <section className="section stack-section" id="stack"><div className="section-intro"><div><p className="eyebrow">04 / Technical stack</p><h2>Tools in context.</h2></div><p>Organized around the kinds of systems I work on, not a collection of logos.</p></div><div className="stack-grid">{stack.map((group) => <article key={group.title}><p className="eyebrow">{group.title}</p><div>{group.items.map((item) => <span key={item}>{item}</span>)}</div></article>)}</div></section>
-
-      <section className="section ai-section"><p className="eyebrow">05 / Engineering philosophy</p><h2>AI is a component.<br /><span>Correctness is the system.</span></h2><div className="ai-copy"><p>I use AI where ambiguity needs interpretation and deterministic software where correctness can be enforced. The goal is not a persuasive answer. It is a system that can be inspected, challenged and trusted.</p><div className="workflow" aria-label="Engineering workflow">{["Understand", "Design", "Build with AI", "Execute", "Inspect", "Validate", "Iterate"].map((item, index) => <span key={item}>{item}{index < 6 && <b>→</b>}</span>)}</div><p className="tools-note">A practical workflow using tools such as Claude, GPT, Gemini and GitHub Copilot — with engineering judgement responsible for the outcome.</p></div></section>
-
-      <section className="section other-projects"><div className="section-intro"><div><p className="eyebrow">06 / Project index</p><h2>More systems,<br />as they become real.</h2></div><p>The site is structured to grow with shipped work. Future ideas are labeled clearly until they are ready to become case studies.</p></div><div className="project-list">{projects.map((project) => <article key={project.name} className={project.live ? "featured-row" : ""}><span className="project-state">{project.state}</span><h3>{project.name}</h3><p>{project.description}</p><span className="project-type">{project.type}</span>{project.live && <a href="#work" aria-label="Read ExchangeLens case study"><Arrow /></a>}</article>)}</div></section>
-
-      <section className="section about-section" id="about"><div><p className="eyebrow">07 / About</p><h2>I work where software meets financial markets.</h2></div><p>Over the last three years at ION, I&apos;ve moved from testing financial systems to automating them, validating their data and leading engineers responsible for their reliability. I&apos;m now applying AI to the same class of problems: messy data, complex rules and systems where plausible isn&apos;t good enough.</p><span className="education">B.Tech, Computer Science · Vellore Institute of Technology</span></section>
-    </main>
-    <footer className="contact" id="contact"><div><p className="eyebrow">08 / Contact</p><h2>Let&apos;s build what&apos;s next.</h2><p>AI, financial infrastructure, data systems, technical product — if the problem is hard and the details matter, I&apos;d like to hear about it.</p></div><a className="contact-email" href={`mailto:${profile.email}`}>{profile.email} <Arrow /></a><div className="footer-bottom"><span>© {new Date().getFullYear()} Satyam Sethi</span><div><a href={profile.github} target="_blank" rel="noreferrer">GitHub</a><a href={profile.linkedin} target="_blank" rel="noreferrer">LinkedIn</a><a href="#top">Back to top ↑</a></div></div></footer>
-  </>;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }}
+      />
+      <a className="skip-link" href="#main">
+        Skip to content
+      </a>
+      <div className="page-grid" aria-hidden="true" />
+      <Navigation />
+      <main id="main">
+        <Hero />
+        <ProofBento />
+        <CaseStudies />
+        <FinancialInspector />
+        <MarketDomainMap />
+        <ExperienceTimeline />
+        <StackCategorized />
+        <PhilosophyVisual />
+        <AboutSection />
+      </main>
+      <Footer />
+    </>
+  );
 }
