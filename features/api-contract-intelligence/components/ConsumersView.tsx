@@ -1,404 +1,314 @@
 "use client";
 
-import { useState, useMemo, ReactElement } from "react";
+/**
+ * ConsumersView — Consumer blast radius and dependency drill-down.
+ * Flow: CHANGE → FIELD/ENDPOINT → AFFECTED CONSUMERS → IMPACT
+ * Sibling <tr> implementation — no nested <tr> inside <tr>!
+ */
+
+import React, { useState, useMemo } from "react";
 import {
   ApiContract,
   ApiConsumer,
-  ConsumerImpactReport,
-  ConsumerToleranceBehavior,
   ImpactLevel,
   CompatibilityClass,
-  ContractDiff,
-  CompatibilityReport,
-} from "../types";
-import { analyzeAllConsumerImpacts } from "../logic/consumer-impact";
-import { diffContractVersions } from "../logic/contract-diff";
-import { classifyCompatibility } from "../logic/compatibility-engine";
-import { SYNTHETIC_CONSUMERS } from "../data/consumers";
+} from "@/features/api-contract-intelligence/types";
+import { diffContractVersions } from "@/features/api-contract-intelligence/logic/contract-diff";
+import { classifyCompatibility } from "@/features/api-contract-intelligence/logic/compatibility-engine";
+import { analyzeAllConsumerImpacts } from "@/features/api-contract-intelligence/logic/consumer-impact";
 
-interface ConsumersViewProps {
-  contracts: readonly ApiContract[];
-  consumers: readonly ApiConsumer[];
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function impactBadge(level: ImpactLevel) {
+  if (level === "CRITICAL") return <span className="aci-badge breaking">CRITICAL</span>;
+  if (level === "HIGH")     return <span className="aci-badge breaking">HIGH</span>;
+  if (level === "MEDIUM")   return <span className="aci-badge potentially">MEDIUM</span>;
+  if (level === "LOW")      return <span className="aci-badge nonbreaking">LOW</span>;
+  return <span className="aci-badge informational">NONE</span>;
 }
 
-function toleranceBadgeClass(tolerance: ConsumerToleranceBehavior): string {
-  switch (tolerance) {
-    case "STRICT":
-      return "aci-badge-breaking";
-    case "LENIENT":
-      return "aci-badge-nonbreaking";
-    case "VERSION_LOCKED":
-      return "aci-badge-critical";
-  }
+function compatClassToBadge(c: CompatibilityClass) {
+  if (c === "BREAKING")             return "breaking";
+  if (c === "POTENTIALLY_BREAKING") return "potentially";
+  if (c === "NON_BREAKING")         return "nonbreaking";
+  return "informational";
 }
 
-function impactBadgeClass(impact: ImpactLevel): string {
-  switch (impact) {
-    case "CRITICAL":
-      return "aci-badge-critical";
-    case "HIGH":
-      return "aci-badge-high";
-    case "MEDIUM":
-      return "aci-badge-medium";
-    case "LOW":
-      return "aci-badge-low";
-    case "NONE":
-      return "aci-badge-none";
-  }
+function latestTwoVersions(contract: ApiContract) {
+  const sorted = [...contract.versions].sort((a, b) =>
+    a.version.localeCompare(b.version, undefined, { numeric: true })
+  );
+  return {
+    base: sorted[sorted.length - 2] ?? sorted[0],
+    target: sorted[sorted.length - 1],
+  };
 }
 
-function compatBadgeClass(compat: CompatibilityClass): string {
-  switch (compat) {
-    case "BREAKING":
-      return "aci-badge-breaking";
-    case "POTENTIALLY_BREAKING":
-      return "aci-badge-potentially";
-    case "NON_BREAKING":
-      return "aci-badge-nonbreaking";
-    case "INFORMATIONAL":
-      return "aci-badge-informational";
-  }
+// ─── Props ────────────────────────────────────────────────────────────────────
+
+interface Props {
+  contracts: ApiContract[];
+  consumers: ApiConsumer[];
+  selectedApiId: string;
 }
 
-export function ConsumersView({ contracts, consumers }: ConsumersViewProps): ReactElement {
-  const [selectedApiId, setSelectedApiId] = useState<string>(
-    contracts.length > 0 ? contracts[0].id : ""
-  );
-  const [fromVersionIdx, setFromVersionIdx] = useState<number>(0);
-  const [toVersionIdx, setToVersionIdx] = useState<number>(
-    contracts.length > 0 && contracts[0].versions.length > 1 ? 1 : 0
-  );
-  const [selectedConsumerId, setSelectedConsumerId] = useState<string | null>(null);
-  const [expandedConsumerId, setExpandedConsumerId] = useState<string | null>(null);
+// ─── Component ───────────────────────────────────────────────────────────────
 
-  const selectedContract = useMemo(
-    () => contracts.find((c) => c.id === selectedApiId) ?? null,
-    [contracts, selectedApiId]
+export function ConsumersView({ contracts, consumers, selectedApiId }: Props) {
+  const [selectedConsumerId, setSelectedConsumerId] = useState<string | null>(
+    consumers[0]?.id ?? null
   );
 
-  const versions = useMemo(
-    () => selectedContract?.versions ?? [],
-    [selectedContract]
-  );
+  const contract =
+    contracts.find((c) => c.id === selectedApiId) ?? contracts[0];
 
-  const impactReports = useMemo<ConsumerImpactReport[]>(() => {
-    if (selectedContract === null) return [];
-    if (fromVersionIdx === toVersionIdx) return [];
-
-    const fromVersion = selectedContract.versions[fromVersionIdx];
-    const toVersion = selectedContract.versions[toVersionIdx];
-    if (fromVersion === undefined || toVersion === undefined) return [];
-
-    const diff: ContractDiff = diffContractVersions(
-      selectedContract.id,
-      fromVersion,
-      toVersion
-    );
-    const compatReport: CompatibilityReport = classifyCompatibility(diff);
-
-    return analyzeAllConsumerImpacts(consumers, diff, compatReport);
-  }, [selectedContract, fromVersionIdx, toVersionIdx, consumers]);
-
-  const filteredReports = useMemo(() => {
-    if (selectedConsumerId === null) return impactReports;
-    return impactReports.filter((r) => r.consumerId === selectedConsumerId);
-  }, [impactReports, selectedConsumerId]);
-
-  function handleApiChange(e: React.ChangeEvent<HTMLSelectElement>): void {
-    const newApiId = e.target.value;
-    setSelectedApiId(newApiId);
-    setFromVersionIdx(0);
-    const contract = contracts.find((c) => c.id === newApiId);
-    setToVersionIdx(contract && contract.versions.length > 1 ? 1 : 0);
-    setExpandedConsumerId(null);
-  }
-
-  function handleFromChange(e: React.ChangeEvent<HTMLSelectElement>): void {
-    setFromVersionIdx(Number(e.target.value));
-  }
-
-  function handleToChange(e: React.ChangeEvent<HTMLSelectElement>): void {
-    setToVersionIdx(Number(e.target.value));
-  }
-
-  function handleConsumerFilterChange(e: React.ChangeEvent<HTMLSelectElement>): void {
-    const val = e.target.value;
-    setSelectedConsumerId(val === "ALL" ? null : val);
-  }
-
-  function toggleExpand(consumerId: string): void {
-    setExpandedConsumerId((prev) => (prev === consumerId ? null : consumerId));
-  }
-
-  const consumerToleranceMap = useMemo(() => {
-    const map = new Map<string, ConsumerToleranceBehavior>();
-    for (const consumer of consumers) {
-      const dep = consumer.dependencies.find((d) => d.apiId === selectedApiId);
-      if (dep) {
-        map.set(consumer.id, dep.toleranceBehavior);
-      }
+  // ── Compute diff & impact reports for current selected API ────────────────
+  const { diff, compat, impactReports } = useMemo(() => {
+    if (!contract || contract.versions.length < 2) {
+      return { diff: null, compat: null, impactReports: [] };
     }
-    return map;
+    const { base, target } = latestTwoVersions(contract);
+    if (!base || !target) return { diff: null, compat: null, impactReports: [] };
+
+    const diff = diffContractVersions(contract.id, base, target);
+    const compat = classifyCompatibility(diff);
+    const impactReports = analyzeAllConsumerImpacts(consumers, diff, compat);
+    return { diff, compat, impactReports };
+  }, [contract, consumers]);
+
+  // Consumers depending on selected API
+  const dependentConsumers = useMemo(() => {
+    return consumers.filter((c) =>
+      c.dependencies.some((d) => d.apiId === selectedApiId)
+    );
   }, [consumers, selectedApiId]);
 
+  // Selected consumer details
+  const selectedConsumer = useMemo(() => {
+    return consumers.find((c) => c.id === selectedConsumerId) ?? null;
+  }, [consumers, selectedConsumerId]);
+
+  const selectedReport = useMemo(() => {
+    return impactReports.find((r) => r.consumerId === selectedConsumerId) ?? null;
+  }, [impactReports, selectedConsumerId]);
+
+  // Stats across all dependent consumers
+  const stats = useMemo(() => {
+    const critical = impactReports.filter((r) => r.overallImpact === "CRITICAL").length;
+    const high     = impactReports.filter((r) => r.overallImpact === "HIGH").length;
+    const medium   = impactReports.filter((r) => r.overallImpact === "MEDIUM").length;
+    const low      = impactReports.filter((r) => r.overallImpact === "LOW").length;
+    return { critical, high, medium, low, total: dependentConsumers.length };
+  }, [impactReports, dependentConsumers]);
+
+  const { base: fromVer, target: toVer } = latestTwoVersions(contract);
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
+
   return (
-    <div className="aci-section">
-      {/* ── Controls Row ─────────────────────────────────────────────────── */}
-      <div className="aci-filter-row">
-        <div>
-          <label className="aci-filter-label" htmlFor="aci-consumer-api-select">
-            API Contract:
-          </label>{" "}
-          <select
-            id="aci-consumer-api-select"
-            className="aci-select"
-            value={selectedApiId}
-            onChange={handleApiChange}
-          >
-            {contracts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
+    <div>
+      {/* ── Transition context bar ──────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 13, color: "var(--aci-text-muted)" }}>Evaluating transition:</span>
+        <span className="aci-transition-chip">
+          {fromVer?.version} <span className="aci-transition-arrow">→</span> {toVer?.version}
+        </span>
+        <span style={{ fontSize: 12, color: "var(--aci-text-muted)", marginLeft: "auto" }}>
+          {dependentConsumers.length} registered consumer{dependentConsumers.length !== 1 ? "s" : ""} for{" "}
+          <strong style={{ color: "var(--aci-text)" }}>{contract.name}</strong>
+        </span>
+      </div>
 
-        <div>
-          <label className="aci-filter-label" htmlFor="aci-consumer-from-select">
-            From Version:
-          </label>{" "}
-          <select
-            id="aci-consumer-from-select"
-            className="aci-select"
-            value={fromVersionIdx}
-            onChange={handleFromChange}
-          >
-            {versions.map((v, idx) => (
-              <option key={v.version} value={idx}>
-                v{v.version}
-              </option>
-            ))}
-          </select>
+      {/* ── Summary stats ──────────────────────────────────────────────── */}
+      <div className="aci-stats-row" style={{ marginBottom: 20 }}>
+        <div className="aci-stat">
+          <div className="aci-stat-val" style={{ color: stats.critical > 0 ? "var(--aci-breaking)" : "var(--aci-ok)" }}>
+            {stats.critical}
+          </div>
+          <div className="aci-stat-label">Critical Impact</div>
         </div>
-
-        <div>
-          <label className="aci-filter-label" htmlFor="aci-consumer-to-select">
-            To Version:
-          </label>{" "}
-          <select
-            id="aci-consumer-to-select"
-            className="aci-select"
-            value={toVersionIdx}
-            onChange={handleToChange}
-          >
-            {versions.map((v, idx) => (
-              <option key={v.version} value={idx}>
-                v{v.version}
-              </option>
-            ))}
-          </select>
+        <div className="aci-stat">
+          <div className="aci-stat-val" style={{ color: stats.high > 0 ? "var(--aci-breaking)" : "var(--aci-ok)" }}>
+            {stats.high}
+          </div>
+          <div className="aci-stat-label">High Impact</div>
         </div>
-
-        <div>
-          <label className="aci-filter-label" htmlFor="aci-consumer-filter-select">
-            Consumer:
-          </label>{" "}
-          <select
-            id="aci-consumer-filter-select"
-            className="aci-select"
-            value={selectedConsumerId ?? "ALL"}
-            onChange={handleConsumerFilterChange}
-          >
-            <option value="ALL">All Consumers ({consumers.length})</option>
-            {consumers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+        <div className="aci-stat">
+          <div className="aci-stat-val" style={{ color: stats.medium > 0 ? "var(--aci-warn)" : "var(--aci-ok)" }}>
+            {stats.medium}
+          </div>
+          <div className="aci-stat-label">Medium Impact</div>
+        </div>
+        <div className="aci-stat">
+          <div className="aci-stat-val">{stats.low}</div>
+          <div className="aci-stat-label">Low Impact</div>
+        </div>
+        <div className="aci-stat">
+          <div className="aci-stat-val">{stats.total}</div>
+          <div className="aci-stat-label">Total Consumers</div>
         </div>
       </div>
 
-      {/* ── Version validation message ───────────────────────────────────── */}
-      {fromVersionIdx === toVersionIdx ? (
-        <div className="aci-empty">
-          <div className="aci-empty-icon">&#8594;</div>
-          <div className="aci-empty-title">Identical Versions Selected</div>
-          <div className="aci-empty-body">
-            Please select two different versions to analyze consumer impact.
+      {/* ── Master-Detail Layout ────────────────────────────────────────── */}
+      <div className="aci-consumer-grid">
+        {/* Left: Consumer List */}
+        <div className="aci-consumer-list-panel">
+          <div className="aci-consumer-list-header">
+            Consumers ({dependentConsumers.length})
           </div>
+          {dependentConsumers.length === 0 ? (
+            <div className="aci-no-results">No consumers depend on this API.</div>
+          ) : (
+            dependentConsumers.map((c) => {
+              const rep = impactReports.find((r) => r.consumerId === c.id);
+              const dep = c.dependencies.find((d) => d.apiId === selectedApiId);
+              return (
+                <div
+                  key={c.id}
+                  className={`aci-consumer-list-item ${selectedConsumerId === c.id ? "selected" : ""}`}
+                  onClick={() => setSelectedConsumerId(c.id)}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <div className="aci-consumer-list-item-name">{c.name}</div>
+                    {rep && impactBadge(rep.overallImpact)}
+                  </div>
+                  <div className="aci-consumer-list-item-sub">
+                    {c.team} · pinned <code className="aci-mono" style={{ fontSize: 10 }}>{dep?.pinnedVersion}</code>
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    <span className="aci-meta-pill" style={{ fontSize: 10 }}>
+                      {dep?.toleranceBehavior}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
-      ) : filteredReports.length === 0 ? (
-        <div className="aci-empty">
-          <div className="aci-empty-icon">&#10003;</div>
-          <div className="aci-empty-title">No Consumer Impact</div>
-          <div className="aci-empty-body">
-            No registered consumers are impacted by the transition from v
-            {versions[fromVersionIdx]?.version ?? "A"} to v
-            {versions[toVersionIdx]?.version ?? "B"}.
-          </div>
-        </div>
-      ) : (
-        <div className="aci-table-wrap">
-          <table className="aci-table">
-            <thead>
-              <tr>
-                <th>Consumer</th>
-                <th>Tolerance</th>
-                <th>Overall Impact</th>
-                <th>Affected APIs</th>
-                <th>Critical Fields</th>
-                <th>Risk Summary</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredReports.map((report) => {
-                const tolerance =
-                  consumerToleranceMap.get(report.consumerId) ?? "STRICT";
-                const isExpanded = expandedConsumerId === report.consumerId;
-                const affectedApis = report.apiImpacts
-                  .map((a) => a.apiId)
-                  .join(", ");
-                const criticalFieldCount = report.apiImpacts.reduce(
-                  (sum, a) =>
-                    sum +
-                    a.fieldImpacts.filter(
-                      (f) =>
-                        f.compatibility === "BREAKING" ||
-                        f.compatibility === "POTENTIALLY_BREAKING"
-                    ).length,
-                  0
-                );
-                const totalFieldCount = report.apiImpacts.reduce(
-                  (sum, a) => sum + a.fieldImpacts.length,
-                  0
-                );
-                const riskSummary =
-                  report.apiImpacts[0]?.riskSummary ?? "No risk details.";
 
+        {/* Right: Consumer Detail Drill-Down */}
+        <div className="aci-consumer-detail-panel">
+          {!selectedConsumer ? (
+            <div className="aci-inspect-empty">
+              <div className="aci-inspect-empty-icon">👥</div>
+              <div className="aci-inspect-empty-text">Select a consumer to inspect its blast radius.</div>
+            </div>
+          ) : (
+            <div>
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--aci-text)", margin: "0 0 4px" }}>
+                    {selectedConsumer.name}
+                  </h3>
+                  <div style={{ fontSize: 12, color: "var(--aci-text-muted)" }}>
+                    {selectedConsumer.team} · <code className="aci-mono">{selectedConsumer.id}</code>
+                  </div>
+                </div>
+                {selectedReport && impactBadge(selectedReport.overallImpact)}
+              </div>
+
+              <p style={{ fontSize: 12.5, color: "var(--aci-text)", lineHeight: 1.5, marginBottom: 16 }}>
+                {selectedConsumer.description}
+              </p>
+
+              {/* Pinned version & tolerance */}
+              {(() => {
+                const dep = selectedConsumer.dependencies.find((d) => d.apiId === selectedApiId);
+                if (!dep) return null;
                 return (
-                  <tr
-                    key={report.consumerId}
-                    style={{ display: "contents" }}
-                  >
-                    <tr
-                      className="aci-expandable"
-                      onClick={() => toggleExpand(report.consumerId)}
-                    >
-                      <td>
-                        <strong>{report.consumerName}</strong>
-                        <div className="aci-table-dim aci-mono">
-                          {report.consumerId}
-                        </div>
-                      </td>
-                      <td>
-                        <span
-                          className={`aci-badge ${toleranceBadgeClass(tolerance)}`}
-                        >
-                          {tolerance.replace("_", " ")}
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          className={`aci-badge ${impactBadgeClass(report.overallImpact)}`}
-                        >
-                          {report.overallImpact}
-                        </span>
-                      </td>
-                      <td className="aci-table-mono">{affectedApis}</td>
-                      <td>
-                        {criticalFieldCount > 0 ? (
-                          <span className="aci-badge aci-badge-critical">
-                            {criticalFieldCount} critical / {totalFieldCount} total
-                          </span>
-                        ) : totalFieldCount > 0 ? (
-                          <span className="aci-badge aci-badge-neutral">
-                            {totalFieldCount} field
-                            {totalFieldCount === 1 ? "" : "s"}
-                          </span>
-                        ) : (
-                          <span className="aci-table-dim">—</span>
-                        )}
-                      </td>
-                      <td className="aci-table-dim">{riskSummary}</td>
-                    </tr>
-
-                    {isExpanded && (
-                      <tr className="aci-expand-detail">
-                        <td colSpan={6}>
-                          {report.apiImpacts.map((apiImpact) => (
-                            <div
-                              key={apiImpact.apiId}
-                              style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-                            >
-                              {/* Affected Endpoints */}
-                              {apiImpact.affectedEndpoints.length > 0 && (
-                                <div>
-                                  <div className="aci-detail-key" style={{ marginBottom: "4px" }}>
-                                    Affected Endpoints ({apiImpact.affectedEndpoints.length}):
-                                  </div>
-                                  <div className="aci-tag-list">
-                                    {apiImpact.affectedEndpoints.map((ep) => (
-                                      <span key={ep} className="aci-tag aci-mono">
-                                        {ep}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Field Impacts Table */}
-                              {apiImpact.fieldImpacts.length > 0 ? (
-                                <div>
-                                  <div className="aci-detail-key" style={{ marginBottom: "6px" }}>
-                                    Field Impacts ({apiImpact.fieldImpacts.length}):
-                                  </div>
-                                  <div className="aci-table-wrap">
-                                    <table className="aci-table">
-                                      <thead>
-                                        <tr>
-                                          <th>Field Path</th>
-                                          <th>Compatibility</th>
-                                          <th>Detail</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {apiImpact.fieldImpacts.map((fi, fiIdx) => (
-                                          <tr key={`${fi.changeId}-${fi.fieldPath}-${fiIdx}`}>
-                                            <td className="aci-table-mono">
-                                              {fi.fieldPath}
-                                            </td>
-                                            <td>
-                                              <span
-                                                className={`aci-badge ${compatBadgeClass(fi.compatibility)}`}
-                                              >
-                                                {fi.compatibility}
-                                              </span>
-                                            </td>
-                                            <td>{fi.detail}</td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="aci-table-dim">
-                                  No field-level impacts for this API dependency.
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </td>
-                      </tr>
-                    )}
-                  </tr>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
+                    <span className="aci-meta-pill">Pinned: <strong>{dep.pinnedVersion}</strong></span>
+                    <span className="aci-meta-pill">Tolerance: <strong>{dep.toleranceBehavior}</strong></span>
+                    <span className="aci-meta-pill">
+                      Endpoints consumed: <strong>{dep.endpoints.length}</strong>
+                    </span>
+                  </div>
                 );
-              })}
-            </tbody>
-          </table>
+              })()}
+
+              {/* Field Impacts (Drill-Down: CHANGE → FIELD → IMPACT) */}
+              <div className="aci-sub-heading">Field Impact Breakdown</div>
+              {selectedReport && selectedReport.apiImpacts.length > 0 ? (
+                selectedReport.apiImpacts.map((apiImpact) => (
+                  <div key={apiImpact.apiId} style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 12, color: "var(--aci-text-muted)", marginBottom: 8 }}>
+                      {apiImpact.riskSummary}
+                    </div>
+
+                    {apiImpact.fieldImpacts.length === 0 ? (
+                      <div style={{ fontSize: 12, color: "var(--aci-ok)" }}>
+                        ✓ No consumed fields are affected by breaking changes.
+                      </div>
+                    ) : (
+                      apiImpact.fieldImpacts.map((fi, i) => (
+                        <div key={i} className="aci-field-impact-row">
+                          <span className={`aci-badge ${compatClassToBadge(fi.compatibility)}`}>
+                            {fi.compatibility.replace(/_/g, " ")}
+                          </span>
+                          <div style={{ flex: 1 }}>
+                            <code className="aci-field-impact-path">{fi.fieldPath}</code>
+                            <div className="aci-field-impact-detail">{fi.detail}</div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div style={{ fontSize: 12, color: "var(--aci-text-muted)" }}>
+                  No impact report available for this version transition.
+                </div>
+              )}
+
+              {/* Consumed Endpoints Table (Correct Sibling <tr> Structure!) */}
+              <div className="aci-sub-heading" style={{ marginTop: 20 }}>Declared Endpoints & Fields</div>
+              {(() => {
+                const dep = selectedConsumer.dependencies.find((d) => d.apiId === selectedApiId);
+                if (!dep) return null;
+                return (
+                  <table className="aci-table">
+                    <thead>
+                      <tr>
+                        <th>Endpoint</th>
+                        <th>Critical</th>
+                        <th>Consumed Fields</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dep.endpoints.map((ep) => (
+                        <tr key={ep.endpointId}>
+                          <td>
+                            <code className="aci-mono" style={{ fontSize: 11 }}>
+                              {ep.endpointId}
+                            </code>
+                          </td>
+                          <td>
+                            {ep.criticalForOperation ? (
+                              <span className="aci-badge breaking">CRITICAL</span>
+                            ) : (
+                              <span className="aci-badge nonbreaking">NON-CRITICAL</span>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                              {ep.consumedFields.map((f) => (
+                                <code key={f} className="aci-mono" style={{ fontSize: 10, padding: "1px 5px", background: "var(--aci-surface-3)" }}>
+                                  {f}
+                                </code>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

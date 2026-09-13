@@ -1,206 +1,219 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { ApiContract, ApiConsumer, CompatibilityReport, ContractDiff } from "../types";
-import { diffContractVersions } from "../logic/contract-diff";
-import { classifyCompatibility } from "../logic/compatibility-engine";
+/**
+ * HistoryView — Clean audit ledger and version history timeline.
+ * Displays version transitions, changelog summaries, compatibility decisions,
+ * and deterministic audit logs.
+ */
 
-interface HistoryViewProps {
-  contracts: readonly ApiContract[];
-  consumers: readonly ApiConsumer[];
+import { useState, useMemo } from "react";
+import {
+  ApiContract,
+  ApiConsumer,
+  CompatibilityClass,
+  ReleaseDecision,
+} from "@/features/api-contract-intelligence/types";
+import { diffContractVersions } from "@/features/api-contract-intelligence/logic/contract-diff";
+import { classifyCompatibility } from "@/features/api-contract-intelligence/logic/compatibility-engine";
+import { evaluateReleaseGate } from "@/features/api-contract-intelligence/logic/release-gate";
+import { analyzeAllConsumerImpacts } from "@/features/api-contract-intelligence/logic/consumer-impact";
+import { buildTestSuite, runContractTests } from "@/features/api-contract-intelligence/logic/contract-test-runner";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function decisionBadge(d: ReleaseDecision) {
+  if (d === "BLOCK") return <span className="aci-badge breaking">BLOCK</span>;
+  if (d === "WARN")  return <span className="aci-badge potentially">WARN</span>;
+  return <span className="aci-badge nonbreaking">ALLOW</span>;
 }
 
-interface TransitionHistoryItem {
-  apiId: string;
-  apiName: string;
-  domain: string;
-  fromVersion: string;
-  toVersion: string;
-  publishedDate: string;
-  diff: ContractDiff;
-  compatReport: CompatibilityReport;
+function compatClassToDot(c: CompatibilityClass) {
+  if (c === "BREAKING")             return "breaking";
+  if (c === "POTENTIALLY_BREAKING") return "potentially";
+  if (c === "NON_BREAKING")         return "nonbreaking";
+  return "informational";
 }
 
-const COMPAT_BADGE_MAP: Record<string, string> = {
-  BREAKING: "aci-badge-breaking",
-  POTENTIALLY_BREAKING: "aci-badge-potentially",
-  NON_BREAKING: "aci-badge-nonbreaking",
-  INFORMATIONAL: "aci-badge-informational",
-};
+// ─── Props ────────────────────────────────────────────────────────────────────
 
-export function HistoryView({ contracts }: HistoryViewProps) {
-  const [filterApiId, setFilterApiId] = useState<string>("ALL");
+interface Props {
+  contracts: ApiContract[];
+  consumers: ApiConsumer[];
+  selectedApiId: string;
+}
 
-  const transitions = useMemo<TransitionHistoryItem[]>(() => {
-    const list: TransitionHistoryItem[] = [];
+// ─── Component ───────────────────────────────────────────────────────────────
 
-    for (const contract of contracts) {
-      if (contract.versions.length < 2) continue;
+export function HistoryView({ contracts, consumers, selectedApiId }: Props) {
+  const [selectedTransitionIdx, setSelectedTransitionIdx] = useState<number | null>(null);
 
-      for (let i = 0; i < contract.versions.length - 1; i++) {
-        const fromV = contract.versions[i];
-        const toV = contract.versions[i + 1];
-        const diff = diffContractVersions(contract.id, fromV, toV);
-        const compatReport = classifyCompatibility(diff);
+  const contract =
+    contracts.find((c) => c.id === selectedApiId) ?? contracts[0];
 
-        list.push({
-          apiId: contract.id,
-          apiName: contract.name,
-          domain: contract.domain,
-          fromVersion: fromV.version,
-          toVersion: toV.version,
-          publishedDate: toV.publishedDate,
-          diff,
-          compatReport,
-        });
-      }
+  // ── Compute all sequential transitions for the selected API ──────────────
+  const transitions = useMemo(() => {
+    if (!contract || contract.versions.length < 2) return [];
+
+    const sorted = [...contract.versions].sort((a, b) =>
+      a.version.localeCompare(b.version, undefined, { numeric: true })
+    );
+
+    const result = [];
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const base = sorted[i];
+      const target = sorted[i + 1];
+
+      const diff = diffContractVersions(contract.id, base, target);
+      const compat = classifyCompatibility(diff);
+      const impacts = analyzeAllConsumerImpacts(consumers, diff, compat);
+      const testCases = buildTestSuite(contract, diff, compat);
+      const tests = runContractTests(testCases, diff);
+      const gate = evaluateReleaseGate(diff, compat, impacts, tests);
+
+      result.push({
+        from: base,
+        to: target,
+        diff,
+        compat,
+        gate,
+        impacts,
+        tests,
+      });
     }
 
-    // Sort newest release date first
-    return list.sort(
-      (a, b) => new Date(b.publishedDate).getTime() - new Date(a.publishedDate).getTime()
-    );
-  }, [contracts]);
+    // Newest transitions first
+    return result.reverse();
+  }, [contract, consumers]);
 
-  const filteredTransitions = useMemo(() => {
-    if (filterApiId === "ALL") return transitions;
-    return transitions.filter((t) => t.apiId === filterApiId);
-  }, [transitions, filterApiId]);
-
-  const totalTransitions = transitions.length;
-  const breakingTransitions = transitions.filter(
-    (t) => t.compatReport.overallCompatibility === "BREAKING"
-  ).length;
-  const totalChangesTracked = transitions.reduce((acc, t) => acc + t.diff.changes.length, 0);
+  const selected =
+    selectedTransitionIdx !== null ? transitions[selectedTransitionIdx] : null;
 
   return (
-    <div className="aci-view-container">
-      <div className="aci-section-header">
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <div>
-          <h2 className="aci-section-title">Contract Evolution & Audit History</h2>
-          <p className="aci-section-subtitle">
-            Historical ledger of contract version migrations, structural modifications, and compatibility findings
-          </p>
-        </div>
-      </div>
-
-      {/* Controls Bar */}
-      <div className="aci-controls-card">
-        <div className="aci-controls-row">
-          <div className="aci-form-group">
-            <label className="aci-label">Filter by API Contract</label>
-            <select
-              className="aci-select"
-              value={filterApiId}
-              onChange={(e) => setFilterApiId(e.target.value)}
-            >
-              <option value="ALL">All Contracts ({contracts.length} APIs)</option>
-              {contracts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.id})
-                </option>
-              ))}
-            </select>
+          <h2 className="aci-section-title" style={{ margin: 0 }}>Version Release Ledger</h2>
+          <div style={{ fontSize: 12, color: "var(--aci-text-muted)", marginTop: 2 }}>
+            Historical transitions, compatibility reports, and release decisions for{" "}
+            <strong style={{ color: "var(--aci-text)" }}>{contract.name}</strong>
           </div>
         </div>
+        <span className="aci-meta-pill">
+          {contract.versions.length} versions · {transitions.length} transitions
+        </span>
       </div>
 
-      {/* KPI Stats */}
-      <div className="aci-stat-grid">
-        <div className="aci-stat-card">
-          <div className="aci-stat-label">Version Transitions</div>
-          <div className="aci-stat-value">{totalTransitions}</div>
-          <div className="aci-stat-desc">Historical schema evolution pairs</div>
-        </div>
-        <div className="aci-stat-card">
-          <div className="aci-stat-label">Breaking Transitions</div>
-          <div
-            className="aci-stat-value"
-            style={{ color: breakingTransitions > 0 ? "var(--aci-danger)" : undefined }}
-          >
-            {breakingTransitions}
-          </div>
-          <div className="aci-stat-desc">Transitions requiring consumer migration</div>
-        </div>
-        <div className="aci-stat-card">
-          <div className="aci-stat-label">Total Schema Mutations</div>
-          <div className="aci-stat-value">{totalChangesTracked}</div>
-          <div className="aci-stat-desc">Field, endpoint, and constraint changes</div>
-        </div>
-        <div className="aci-stat-card">
-          <div className="aci-stat-label">Tracked APIs</div>
-          <div className="aci-stat-value">{contracts.length}</div>
-          <div className="aci-stat-desc">Active institutional interfaces</div>
-        </div>
-      </div>
-
-      {/* Timeline of Version Transitions */}
-      <div className="aci-timeline">
-        {filteredTransitions.map((item, idx) => {
-          const compatClass = item.compatReport.overallCompatibility;
-          const badgeClass = COMPAT_BADGE_MAP[compatClass] || "aci-badge-neutral";
-
-          return (
-            <div key={`${item.apiId}-${item.fromVersion}-${item.toVersion}`} className="aci-timeline-item">
-              <div className="aci-timeline-marker" />
-              <div className="aci-card aci-timeline-card">
-                <div className="aci-timeline-header">
-                  <div>
-                    <div className="aci-timeline-title">
-                      <strong>{item.apiName}</strong> (<code>{item.apiId}</code>)
+      {transitions.length === 0 ? (
+        <div className="aci-no-results">No historical transitions for this API.</div>
+      ) : (
+        <div className="aci-history-timeline">
+          {transitions.map((t, idx) => {
+            const isSelected = selectedTransitionIdx === idx;
+            const dotClass = compatClassToDot(t.compat.overallCompatibility);
+            return (
+              <div key={`${t.from.version}-${t.to.version}`} className="aci-history-item">
+                <span className={`aci-history-dot ${dotClass}`} />
+                <div
+                  className="aci-history-card"
+                  style={{
+                    cursor: "pointer",
+                    borderLeft: isSelected ? "3px solid var(--aci-accent)" : undefined,
+                    background: isSelected ? "var(--aci-surface-2)" : undefined,
+                  }}
+                  onClick={() => setSelectedTransitionIdx(isSelected ? null : idx)}
+                >
+                  <div className="aci-history-card-header">
+                    <div>
+                      <div className="aci-history-card-title">
+                        {t.to.changelogSummary ?? `Release ${t.to.version}`}
+                      </div>
+                      <div className="aci-history-card-sub">
+                        <span className="aci-transition-chip" style={{ fontSize: 11, padding: "2px 8px" }}>
+                          {t.from.version} <span className="aci-transition-arrow">→</span> {t.to.version}
+                        </span>
+                      </div>
                     </div>
-                    <div className="aci-timeline-subtitle">
-                      v{item.fromVersion} → v{item.toVersion} • Published on {item.publishedDate}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {decisionBadge(t.gate.decision)}
+                      <span className="aci-history-card-date">{t.to.publishedDate}</span>
                     </div>
                   </div>
-                  <div>
-                    <span className={`aci-badge ${badgeClass}`}>{compatClass}</span>
-                  </div>
-                </div>
 
-                <div className="aci-timeline-body">
-                  <div className="aci-timeline-meta-row">
-                    <span className="aci-meta-item">
-                      Total Changes: <strong>{item.diff.changes.length}</strong>
-                    </span>
-                    <span className="aci-meta-item">
-                      Breaking Findings:{" "}
-                      <strong className={item.compatReport.breakingCount > 0 ? "aci-text-danger" : ""}>
-                        {item.compatReport.breakingCount}
+                  {/* Summary pills */}
+                  <div className="aci-history-meta-pills">
+                    <span className="aci-history-meta-pill">
+                      Breaking: <strong style={{ color: t.compat.breakingCount > 0 ? "var(--aci-breaking)" : "inherit" }}>
+                        {t.compat.breakingCount}
                       </strong>
                     </span>
-                    <span className="aci-meta-item">
-                      Endpoints Added: <strong>{item.diff.endpointsAdded.length}</strong>
+                    <span className="aci-history-meta-pill">
+                      Potentially: <strong style={{ color: t.compat.potentiallyBreakingCount > 0 ? "var(--aci-warn)" : "inherit" }}>
+                        {t.compat.potentiallyBreakingCount}
+                      </strong>
                     </span>
-                    <span className="aci-meta-item">
-                      Endpoints Removed: <strong>{item.diff.endpointsRemoved.length}</strong>
+                    <span className="aci-history-meta-pill">
+                      Non-breaking: <strong>{t.compat.nonBreakingCount}</strong>
+                    </span>
+                    <span className="aci-history-meta-pill">
+                      Risk Score: <strong>{t.gate.riskScore}</strong>
+                    </span>
+                    <span className="aci-history-meta-pill">
+                      Tests: <strong>{t.tests.passedTests}/{t.tests.totalTests}</strong>
                     </span>
                   </div>
 
-                  {item.diff.changes.length > 0 && (
-                    <div className="aci-timeline-changes">
-                      <div className="aci-timeline-changes-title">Key Schema Modifications:</div>
-                      <ul className="aci-timeline-list">
-                        {item.diff.changes.slice(0, 4).map((change) => (
-                          <li key={change.id}>
-                            <code className="aci-code-tag">{change.kind}</code> on{" "}
-                            <code>{change.endpointId}</code>: {change.description}
-                          </li>
-                        ))}
-                        {item.diff.changes.length > 4 && (
-                          <li className="aci-text-muted">
-                            + {item.diff.changes.length - 4} additional schema changes
-                          </li>
-                        )}
-                      </ul>
+                  {/* Top changes preview */}
+                  <ul className="aci-history-changes-list">
+                    {t.diff.changes.slice(0, 3).map((ch) => (
+                      <li key={ch.id}>
+                        <code className="aci-mono" style={{ fontSize: 10, color: "var(--aci-text-muted)" }}>
+                          {ch.kind}
+                        </code>
+                        <span>{ch.description}</span>
+                      </li>
+                    ))}
+                    {t.diff.changes.length > 3 && (
+                      <li style={{ color: "var(--aci-text-muted)", fontStyle: "italic" }}>
+                        + {t.diff.changes.length - 3} more change{t.diff.changes.length - 3 !== 1 ? "s" : ""} (click to expand)
+                      </li>
+                    )}
+                  </ul>
+
+                  {/* Expanded detail */}
+                  {isSelected && (
+                    <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--aci-border)" }}>
+                      <div className="aci-inspect-section-title">Release Gate Narrative</div>
+                      <div style={{ fontSize: 12.5, color: "var(--aci-text)", lineHeight: 1.5, marginBottom: 12 }}>
+                        {t.gate.narrative}
+                      </div>
+
+                      <div className="aci-inspect-section-title">All Changes ({t.diff.changes.length})</div>
+                      <table className="aci-table" style={{ fontSize: 11.5 }}>
+                        <thead>
+                          <tr>
+                            <th>Endpoint</th>
+                            <th>Kind</th>
+                            <th>Description</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {t.diff.changes.map((ch) => (
+                            <tr key={ch.id}>
+                              <td><code className="aci-mono">{ch.endpointId}</code></td>
+                              <td><code className="aci-mono">{ch.kind}</code></td>
+                              <td>{ch.description}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

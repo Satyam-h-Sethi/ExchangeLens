@@ -1,125 +1,126 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import "./aci.css";
-import { SYNTHETIC_CONTRACTS } from "../../../features/api-contract-intelligence/data/contracts";
-import { SYNTHETIC_CONSUMERS } from "../../../features/api-contract-intelligence/data/consumers";
 import {
   OverviewView,
-  ContractsView,
   CompareView,
-  CompatibilityView,
   ConsumersView,
-  ContractTestsView,
-  ReleaseGateView,
   HistoryView,
-  MigrationPlanView,
-} from "../../../features/api-contract-intelligence/components";
+} from "@/features/api-contract-intelligence/components";
+import { SYNTHETIC_CONTRACTS } from "@/features/api-contract-intelligence/data/contracts";
+import { SYNTHETIC_CONSUMERS } from "@/features/api-contract-intelligence/data/consumers";
 
-type TabId =
-  | "overview"
-  | "contracts"
-  | "compare"
-  | "compatibility"
-  | "consumers"
-  | "tests"
-  | "release-gate"
-  | "history"
-  | "migration";
+// ─── Tab configuration ────────────────────────────────────────────────────────
 
-interface TabItem {
-  id: TabId;
-  label: string;
-  badge?: string;
-}
+type TabId = "overview" | "compare" | "consumers" | "history";
 
-const TABS: TabItem[] = [
-  { id: "overview", label: "Overview" },
-  { id: "contracts", label: "Contracts Explorer" },
-  { id: "compare", label: "Structural Diff" },
-  { id: "compatibility", label: "Compatibility Matrix" },
-  { id: "consumers", label: "Consumer Blast Radius" },
-  { id: "tests", label: "Contract Tests" },
-  { id: "release-gate", label: "Release Gate", badge: "Live" },
-  { id: "migration", label: "Migration Planner" },
-  { id: "history", label: "Evolution History" },
+const TABS: { id: TabId; label: string }[] = [
+  { id: "overview",   label: "Overview" },
+  { id: "compare",    label: "Compare" },
+  { id: "consumers",  label: "Consumers" },
+  { id: "history",    label: "History" },
 ];
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ApiContractIntelligencePage() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
+  // Shared API selector — drives Compare / Consumers / History
+  const [selectedApiId, setSelectedApiId] = useState<string>(
+    SYNTHETIC_CONTRACTS[0]?.id ?? ""
+  );
+
+  const selectedContract =
+    SYNTHETIC_CONTRACTS.find((c) => c.id === selectedApiId) ??
+    SYNTHETIC_CONTRACTS[0];
+
   return (
-    <div className="aci-root">
-      {/* Top Banner / Hero */}
-      <header className="aci-hero">
-        <div className="aci-hero-inner">
-          <div className="aci-hero-badge-row">
-            <span className="aci-badge aci-badge-neutral">INSTITUTIONAL GOVERNANCE</span>
-            <span className="aci-badge aci-badge-nonbreaking">PURE COMPUTATION ENGINE</span>
-            <span className="aci-badge aci-badge-informational">ZERO EXTERNAL NETWORK DEPENDENCY</span>
-          </div>
-          <h1 className="aci-hero-title">API Contract Intelligence & Release Governance</h1>
-          <p className="aci-hero-subtitle">
-            Deterministic AST diffing, semantic backward/forward compatibility classification, consumer blast radius
-            modeling, and zero-network contract invariant testing for mission-critical financial APIs.
+    <main className="aci-root">
+      {/* ── Page header ─────────────────────────────────────────────────── */}
+      <div className="aci-header">
+        <div>
+          <div className="aci-header-eyebrow">Internal Platform</div>
+          <h1 className="aci-header-title">API Contract Intelligence</h1>
+          <p className="aci-header-subtitle">
+            Structural diff · Compatibility classification · Consumer blast
+            radius · Release gate
           </p>
         </div>
-      </header>
 
-      {/* Navigation Tab Bar */}
-      <nav className="aci-nav-bar" aria-label="API Contract Intelligence Navigation">
-        <div className="aci-nav-inner">
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                className={`aci-nav-tab ${isActive ? "aci-nav-tab-active" : ""}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                <span>{tab.label}</span>
-                {tab.badge && <span className="aci-tab-badge">{tab.badge}</span>}
-              </button>
-            );
-          })}
+        {/* API selector lives in header so all tabs share it */}
+        <div className="aci-header-selectors">
+          <div className="aci-header-form-group">
+            <label className="aci-header-label" htmlFor="api-select">
+              API Contract
+            </label>
+            <select
+              id="api-select"
+              className="aci-select"
+              value={selectedApiId}
+              onChange={(e) => setSelectedApiId(e.target.value)}
+            >
+              {SYNTHETIC_CONTRACTS.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
+      </div>
+
+      {/* ── Primary nav ─────────────────────────────────────────────────── */}
+      <nav className="aci-tabs" role="tablist">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={`aci-tab ${activeTab === tab.id ? "active" : ""}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </nav>
 
-      {/* Main Content Workspace */}
-      <main className="aci-workspace">
+      {/* ── Tab panels ──────────────────────────────────────────────────── */}
+      <div className="aci-content">
         {activeTab === "overview" && (
-          <OverviewView contracts={SYNTHETIC_CONTRACTS} consumers={SYNTHETIC_CONSUMERS} />
+          <OverviewView
+            contracts={SYNTHETIC_CONTRACTS}
+            consumers={SYNTHETIC_CONSUMERS}
+            selectedApiId={selectedApiId}
+            onSelectApi={setSelectedApiId}
+            onNavigate={(tab) => setActiveTab(tab as TabId)}
+          />
         )}
-        {activeTab === "contracts" && <ContractsView contracts={SYNTHETIC_CONTRACTS} />}
-        {activeTab === "compare" && <CompareView contracts={SYNTHETIC_CONTRACTS} />}
-        {activeTab === "compatibility" && <CompatibilityView contracts={SYNTHETIC_CONTRACTS} />}
-        {activeTab === "consumers" && (
-          <ConsumersView contracts={SYNTHETIC_CONTRACTS} consumers={SYNTHETIC_CONSUMERS} />
-        )}
-        {activeTab === "tests" && <ContractTestsView contracts={SYNTHETIC_CONTRACTS} />}
-        {activeTab === "release-gate" && (
-          <ReleaseGateView contracts={SYNTHETIC_CONTRACTS} consumers={SYNTHETIC_CONSUMERS} />
-        )}
-        {activeTab === "migration" && (
-          <MigrationPlanView contracts={SYNTHETIC_CONTRACTS} consumers={SYNTHETIC_CONSUMERS} />
-        )}
-        {activeTab === "history" && (
-          <HistoryView contracts={SYNTHETIC_CONTRACTS} consumers={SYNTHETIC_CONSUMERS} />
-        )}
-      </main>
 
-      {/* Institutional Footer */}
-      <footer className="aci-footer">
-        <div className="aci-footer-inner">
-          <div className="aci-footer-brand">
-            <strong>API Contract Intelligence</strong> — Enterprise Specification Governance Platform
-          </div>
-          <div className="aci-footer-meta">
-            Deterministic AST Diff Engine • Semantic Rule Classifiers (COMPAT-REQ/RESP/PARAM/EP) • Weighted Release Gate
-          </div>
-        </div>
-      </footer>
-    </div>
+        {activeTab === "compare" && (
+          <CompareView
+            contract={selectedContract}
+            consumers={SYNTHETIC_CONSUMERS}
+          />
+        )}
+
+        {activeTab === "consumers" && (
+          <ConsumersView
+            contracts={SYNTHETIC_CONTRACTS}
+            consumers={SYNTHETIC_CONSUMERS}
+            selectedApiId={selectedApiId}
+          />
+        )}
+
+        {activeTab === "history" && (
+          <HistoryView
+            contracts={SYNTHETIC_CONTRACTS}
+            consumers={SYNTHETIC_CONSUMERS}
+            selectedApiId={selectedApiId}
+          />
+        )}
+      </div>
+    </main>
   );
 }
