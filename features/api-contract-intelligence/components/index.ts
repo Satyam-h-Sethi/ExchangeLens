@@ -7,3 +7,4 @@ export { OverviewView } from "./OverviewView";
 export { CompareView } from "./CompareView";
 export { ConsumersView } from "./ConsumersView";
 export { HistoryView } from "./HistoryView";
+export { ContractIntelligenceDemoBanner } from "./ContractIntelligenceDemoBanner";

@@ -8,6 +8,7 @@ import { ScenarioSelector } from "@/features/exchange-lens/components/ScenarioSe
 import { DocumentSummary } from "@/features/exchange-lens/components/DocumentSummary";
 import { FieldComparisonTable } from "@/features/exchange-lens/components/FieldComparisonTable";
 import { ValidationPanel } from "@/features/exchange-lens/components/ValidationPanel";
+import { ExchangeLensDemoBanner } from "@/features/exchange-lens/components/ExchangeLensDemoBanner";
 
 import "./exchangelens.css";
 
@@ -34,6 +35,17 @@ export default function ExchangeLensPage() {
 
   const handleFieldSelect = (fieldName: string) => {
     setSelectedField((prev) => (prev === fieldName ? null : fieldName));
+    const el = document.getElementById("workspace");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const handleScrollToSection = (sectionId: string) => {
+    const el = document.getElementById(sectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   return (
@@ -69,6 +81,15 @@ export default function ExchangeLensPage() {
         </p>
       </header>
 
+      {/* ── Interactive Automation Demonstration Banner ─────────────────── */}
+      <section className="el-section" aria-label="Interactive Automation Demonstration">
+        <ExchangeLensDemoBanner
+          scenario={scenario}
+          onInspectField={handleFieldSelect}
+          onScrollToSection={handleScrollToSection}
+        />
+      </section>
+
       {/* ── Scenario selector ───────────────────────────────────────────── */}
       <section className="el-section" aria-label="Select exchange scenario">
         <div className="el-section-label">
@@ -82,7 +103,7 @@ export default function ExchangeLensPage() {
       </section>
 
       {/* ── Three-panel main workspace ───────────────────────────────────── */}
-      <section className="el-workspace" aria-label="ExchangeLens workspace">
+      <section className="el-workspace" id="workspace" aria-label="ExchangeLens workspace">
         {/* Panel A: Document summary */}
         <div className="el-panel el-panel--doc" aria-label="Document summary">
           <div className="el-panel-header">
@@ -121,7 +142,7 @@ export default function ExchangeLensPage() {
       </section>
 
       {/* ── Architecture note ────────────────────────────────────────────── */}
-      <section className="el-arch-note" aria-label="Architecture notes">
+      <section className="el-arch-note" id="architecture" aria-label="Architecture notes">
         <div className="el-arch-note-header">
           <span className="el-mono el-text-faint">ARCHITECTURE NOTE</span>
         </div>

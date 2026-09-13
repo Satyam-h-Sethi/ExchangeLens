@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import "./aci.css";
 import {
   OverviewView,
   CompareView,
   ConsumersView,
   HistoryView,
+  ContractIntelligenceDemoBanner,
 } from "@/features/api-contract-intelligence/components";
 import { SYNTHETIC_CONTRACTS } from "@/features/api-contract-intelligence/data/contracts";
 import { SYNTHETIC_CONSUMERS } from "@/features/api-contract-intelligence/data/consumers";
@@ -41,6 +43,9 @@ export default function ApiContractIntelligencePage() {
       {/* ── Page header ─────────────────────────────────────────────────── */}
       <div className="aci-header">
         <div>
+          <Link href="/" className="aci-back-link" style={{ display: "inline-block", marginBottom: "0.5rem", fontSize: "0.82rem", color: "var(--aci-text-muted)", textDecoration: "none" }}>
+            ← Back to Portfolio Overview
+          </Link>
           <div className="aci-header-eyebrow">Internal Platform</div>
           <h1 className="aci-header-title">API Contract Intelligence</h1>
           <p className="aci-header-subtitle">
@@ -70,6 +75,16 @@ export default function ApiContractIntelligencePage() {
           </div>
         </div>
       </div>
+
+      {/* ── Interactive Automation Demonstration Banner ─────────────────── */}
+      <ContractIntelligenceDemoBanner
+        contract={selectedContract}
+        consumers={SYNTHETIC_CONSUMERS}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          window.scrollTo({ top: 350, behavior: "smooth" });
+        }}
+      />
 
       {/* ── Primary nav ─────────────────────────────────────────────────── */}
       <nav className="aci-tabs" role="tablist">

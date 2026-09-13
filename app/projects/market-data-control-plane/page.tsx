@@ -37,6 +37,7 @@ import { SourceRegistryView } from "@/features/market-data-control-plane/compone
 import { IncidentManagerView } from "@/features/market-data-control-plane/components/IncidentManagerView";
 import { ReplayInvestigationView } from "@/features/market-data-control-plane/components/ReplayInvestigationView";
 import { DataExplorerView } from "@/features/market-data-control-plane/components/DataExplorerView";
+import { ControlPlaneDemoBanner } from "@/features/market-data-control-plane/components/ControlPlaneDemoBanner";
 
 export default function MarketDataControlPlanePage() {
   const [activeTab, setActiveTab] = useState<ControlPlaneSubsystemTab>("CONTROL_TOWER");
@@ -82,6 +83,19 @@ export default function MarketDataControlPlanePage() {
           </span>
         </div>
       </div>
+
+      {/* Interactive Automation Demonstration Banner */}
+      <ControlPlaneDemoBanner
+        onNavigateTab={(tabKey) => {
+          setActiveTab(tabKey);
+          window.scrollTo({ top: 400, behavior: "smooth" });
+        }}
+        onInspectIncident={(incident) => {
+          setSelectedIncidentForDetail(incident);
+          setActiveTab("INCIDENT_MANAGER");
+          window.scrollTo({ top: 400, behavior: "smooth" });
+        }}
+      />
 
       {/* Subsystem Navigation Bar */}
       <nav className="cp-nav-tabs" aria-label="Control Plane Subsystems">
