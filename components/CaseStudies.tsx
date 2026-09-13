@@ -79,6 +79,24 @@ export const CaseStudies: React.FC = () => {
                     <Badge key={tag}>{tag}</Badge>
                   ))}
                 </div>
+                {study.id === "api-contract-intelligence" && (
+                  <Link
+                    href="/projects/api-contract-intelligence"
+                    className="case-study-demo-link"
+                    aria-label="Open API Contract Intelligence platform"
+                  >
+                    Launch Governance Platform →
+                  </Link>
+                )}
+                {study.id === "market-data-control-plane" && (
+                  <Link
+                    href="/projects/market-data-control-plane"
+                    className="case-study-demo-link"
+                    aria-label="Open Market Data Control Plane interactive console"
+                  >
+                    View Live Control Plane →
+                  </Link>
+                )}
                 {study.id === "exchange-lens" && (
                   <Link
                     href="/projects/exchangelens"

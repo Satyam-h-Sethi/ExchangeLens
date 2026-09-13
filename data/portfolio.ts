@@ -148,6 +148,53 @@ export const metrics: Metric[] = [
 
 export const caseStudies: CaseStudy[] = [
   {
+    id: "api-contract-intelligence",
+    name: "API Contract Intelligence & Release Governance",
+    category: "Contract Invariants & Release Governance",
+    tagline: "Deterministic AST diffing, semantic compatibility classification, and zero-network release gates.",
+    status: "Project Case Study",
+    problem:
+      "Enterprise financial microservices undergo continuous version evolution where uncoordinated schema modifications, breaking field mutations, and semantic contract drift cause catastrophic downstream clearing, trade execution, and settlement failures.",
+    approach:
+      "Architected an institutional specification governance platform featuring recursive AST diffing, semantic rule classifiers (COMPAT-REQ, COMPAT-RESP, COMPAT-PARAM, COMPAT-EP), field-level consumer blast radius modeling, zero-network contract invariant testing, and weighted multi-factor release gates.",
+    architecture: [
+      "Deterministic Recursive AST Diff Engine",
+      "Semantic Backward / Forward Compatibility Classifier",
+      "Field-Level Consumer Dependency Blast Radius Analyzer",
+      "Pure Algorithmic Zero-Network Invariant Test Simulator",
+      "Weighted Multi-Factor Policy Matrix Release Gate Evaluator",
+      "Automated Consumer Migration Runbook & Task Generator",
+    ],
+    validation:
+      "100% deterministic local computation with zero external network dependencies or LLM hallucination risk. Evaluates candidate contract schemas against strict backward/forward invariants with cryptographic change hashing.",
+    outcome:
+      "Eliminates silent API contract drift and empowers release engineering teams with automated ALLOW / WARN / BLOCK governance decisions and tailored consumer migration plans.",
+    tags: ["API Contracts", "AST Diffing", "Compatibility", "Release Gate", "FinTech Architecture", "TypeScript"],
+  },
+  {
+    id: "market-data-control-plane",
+    name: "Market Data Control Plane",
+    category: "Financial Data Reliability & Lineage",
+    tagline: "Enterprise data governance, multi-source reconciliation, and directed blast-radius response engine.",
+    status: "Project Case Study",
+    problem:
+      "Global exchange feeds (CME, ICE, Eurex, Bloomberg) experience schema drift, reconciliation mismatches, and contract specification deviations that silently propagate downstream to critical pricing, margin, and VaR engines.",
+    approach:
+      "Architected a comprehensive control plane combining 8-dimensional deterministic quality assertions, multi-feed consensus reconciliation, schema mutation impact classification, directed DAG lineage traversal, and an immutable audit incident manager.",
+    architecture: [
+      "Multi-Exchange Telemetry & Ingestion Gateway",
+      "Deterministic 8-Dimension Quality Evaluation Engine",
+      "Multi-Feed Tolerance Reconciliation Matrix",
+      "Directed DAG Lineage & Blast Radius Calculator",
+      "Incident Lifecycle & Immutable Audit Trail",
+    ],
+    validation:
+      "Evaluates canonical contracts against strict exchange specifications, tolerance rules, and schema compatibility gates with instant quarantine and automated mitigation playbooks.",
+    outcome:
+      "Provides institutional data teams with an end-to-end cockpit answering what changed, where it came from, what disagrees, and what downstream systems are impacted.",
+    tags: ["Market Data", "Data Lineage", "Reconciliation", "Schema Drift", "TypeScript"],
+  },
+  {
     id: "exchange-lens",
     name: "ExchangeLens",
     category: "Regulatory & Data Reconciliation",
